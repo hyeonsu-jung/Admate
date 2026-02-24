@@ -11,5 +11,5 @@ pymupdf
 pandas
 openpyxl
 python-dotenv
-unstructured[all-docs]
+python-magic; sys_platform != 'win32'
 python-magic-bin; sys_platform == 'win32'
