@@ -40,6 +40,10 @@ class RagEngine:
         all_chunks_to_index = []
         
         for doc in documents:
+            # 이미지 포함 여부 미리 확인
+            has_images = bool(doc.get("images"))
+            initial_status = "indexing_images" if has_images else "indexed"
+            
             if doc.get("content") and doc["content"].strip():
                 texts = self.text_splitter.split_text(doc["content"])
                 for i, chunk_text in enumerate(texts):
@@ -49,7 +53,7 @@ class RagEngine:
                             **doc["metadata"], 
                             "chunk_index": i, 
                             "data_type": "text",
-                            "status": "indexing_images" # 텍스트는 완료, 이미지는 아직 분석 전 상태
+                            "status": initial_status
                         }
                     })
         
