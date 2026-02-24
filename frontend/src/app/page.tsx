@@ -37,8 +37,9 @@ export default function ChatPage() {
 
   // 문서 목록 가져오기 함수 (폴링 및 상태 갱신용)
   const fetchDocs = async () => {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/docs/list');
+      const response = await fetch(`${apiUrl}/api/v1/docs/list`);
       if (response.ok) {
         const data = await response.json();
         setUploadedDocs(data.documents || []);
@@ -76,15 +77,15 @@ export default function ChatPage() {
     const botMsgId = Date.now() + 1;
     setMessages(prev => [...prev, { id: botMsgId, type: 'bot', text: '', sources: [] }]);
 
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/chat/ask/stream', {
+      const response = await fetch(`${apiUrl}/api/v1/chat/ask/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: userMsgText,
-          history: [],
+          query: userMsgText,
           filter_source: selectedFilter
-        })
+        }),
       });
 
       if (!response.body) throw new Error('No body');
@@ -133,8 +134,9 @@ export default function ChatPage() {
     e.stopPropagation();
     if (!confirm(`'${filename}' 문서를 삭제하시겠습니까?`)) return;
 
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/v1/docs/delete/${encodeURIComponent(filename)}`, {
+      const response = await fetch(`${apiUrl}/api/v1/docs/delete/${encodeURIComponent(filename)}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -152,8 +154,9 @@ export default function ChatPage() {
     const formData = new FormData();
     Array.from(files).forEach(file => formData.append('files', file));
 
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/v1/docs/upload', {
+      const response = await fetch(`${apiUrl}/api/v1/docs/upload`, {
         method: 'POST',
         body: formData,
       });
