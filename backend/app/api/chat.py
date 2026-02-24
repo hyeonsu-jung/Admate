@@ -10,6 +10,7 @@ engine = get_rag_engine()
 
 class ChatRequest(BaseModel):
     query: str
+    user_id: Optional[str] = "public"
     history: Optional[List[dict]] = []
     filter_source: Optional[str] = None
 
@@ -19,7 +20,7 @@ async def ask_question(request: ChatRequest):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
         
-    result = await engine.get_answer(request.query, filter_source=request.filter_source)
+    result = await engine.get_answer(request.query, filter_source=request.filter_source, user_id=request.user_id)
     return result
 
 @router.post("/ask/stream")
@@ -29,6 +30,6 @@ async def ask_question_stream(request: ChatRequest):
         raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
         
     return StreamingResponse(
-        engine.get_streaming_answer(request.query, filter_source=request.filter_source),
+        engine.get_streaming_answer(request.query, filter_source=request.filter_source, user_id=request.user_id),
         media_type="text/event-stream"
     )

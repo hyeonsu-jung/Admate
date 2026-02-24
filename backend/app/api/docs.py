@@ -9,7 +9,11 @@ parser = DocumentParser()
 engine = get_rag_engine()
 
 @router.post("/upload")
-async def upload_documents(background_tasks: BackgroundTasks, files: List[UploadFile] = File(...)):
+async def upload_documents(
+    background_tasks: BackgroundTasks, 
+    files: List[UploadFile] = File(...),
+    user_id: str = "public"
+):
     """다중 파일 업로드, 파싱 및 벡터 저장 실행 (v2.2 비동기 최적화)"""
     results = []
     
@@ -19,8 +23,11 @@ async def upload_documents(background_tasks: BackgroundTasks, files: List[Upload
             # 1. 문서 파싱 (텍스트 + 이미지 추출)
             raw_docs = parser.parse_file(content, file.filename)
             
+            # 사용자 ID 메타데이터 추가
+            for doc in raw_docs:
+                doc["metadata"]["user_id"] = user_id
+            
             # 2. 텍스트 즉시 인덱싱 (매우 빠름)
-            # 이 단계가 끝나면 사이드바에 문서가 나타남
             count = await engine.index_text(raw_docs)
             
             # 3. 이미지 백그라운드 인덱싱 등록 (무거운 작업)
@@ -43,12 +50,16 @@ async def upload_documents(background_tasks: BackgroundTasks, files: List[Upload
     return {"results": results}
 
 @router.get("/list")
-async def list_documents():
-    """등록된 문서 목록 조회"""
+async def list_documents(user_id: str = "public"):
+    """등록된 문서 목록 조회 (사용자별 필터링)"""
     # 벡터 DB에 저장된 실제 문서 소스 목록 추출
     docs_info = {}
     if engine.vector_db.local_cache:
         for item in engine.vector_db.local_cache:
+            # 사용자 ID가 일치하거나 공용 문서인 경우만 반환
+            if item["metadata"].get("user_id") != user_id:
+                continue
+                
             source = item["metadata"]["source"]
             current_status = item["metadata"].get("status", "indexed")
             
@@ -67,10 +78,10 @@ async def list_documents():
     return {"documents": list(docs_info.values())}
 
 @router.delete("/delete/{filename}")
-async def delete_document(filename: str):
-    """특정 문서 삭제"""
+async def delete_document(filename: str, user_id: str = "public"):
+    """특정 문서 삭제 (본인 확인)"""
     try:
-        success = engine.vector_db.delete_document(filename)
+        success = engine.vector_db.delete_document(filename, user_id=user_id)
         if success:
             return {"status": "Success", "message": f"Document {filename} deleted."}
         else:

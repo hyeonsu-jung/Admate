@@ -104,11 +104,11 @@ class RagEngine:
             await self.vector_db.upsert_documents(analyzed_images, skip_delete=True)
             logger.info("Background vision analysis and indexing completed.")
 
-    async def get_answer(self, query: str, filter_source: str = None):
-        """질문에 대한 답변 생성 (벡터 검색 -> LLM 답변)"""
+    async def get_answer(self, query: str, filter_source: str = None, user_id: str = "public"):
+        """질문에 대한 답변 생성 (사용자 필터 적용)"""
         start_time = time.time()
         try:
-            matches = await self.vector_db.search(query, top_k=3, filter_source=filter_source)
+            matches = await self.vector_db.search(query, top_k=3, filter_source=filter_source, user_id=user_id)
             
             # 컨텍스트 보강: 텍스트 앞에 출처 정보 명시
             context_list = []
@@ -144,11 +144,11 @@ class RagEngine:
             logger.error(f"Error in get_answer: {str(e)}")
             return {"answer": f"답변 생성 중 오류가 발생했습니다: {str(e)}", "sources": []}
 
-    async def get_streaming_answer(self, query: str, filter_source: str = None):
-        """스트리밍 방식으로 답변 및 출처 정보 전달"""
+    async def get_streaming_answer(self, query: str, filter_source: str = None, user_id: str = "public"):
+        """스트리밍 방식으로 답변 및 출처 정보 전달 (사용자 필터 적용)"""
         start_time = time.time()
         try:
-            matches = await self.vector_db.search(query, top_k=3, filter_source=filter_source)
+            matches = await self.vector_db.search(query, top_k=3, filter_source=filter_source, user_id=user_id)
             
             # 컨텍스트 보강: 텍스트 앞에 출처 정보 명시
             context_list = []

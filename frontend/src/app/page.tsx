@@ -25,21 +25,33 @@ export default function ChatPage() {
   const [uploadedDocs, setUploadedDocs] = useState<Document[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [userId, setUserId] = useState<string>('public');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // 스크롤 자동 이동
+  // 스크롤 자동 이동 및 사용자 ID 초기화
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
 
-  // 문서 목록 가져오기 함수 (폴링 및 상태 갱신용)
+  useEffect(() => {
+    // 로컬 스토리지에서 기존 ID 확인하거나 새로 생성
+    let storedId = localStorage.getItem('admate_user_id');
+    if (!storedId) {
+      storedId = 'user_' + Math.random().toString(36).substring(2, 11);
+      localStorage.setItem('admate_user_id', storedId);
+    }
+    setUserId(storedId);
+  }, []);
+
+  // 문서 목록 가져오기 함수 (사용자 ID 필터 적용)
   const fetchDocs = async () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     try {
-      const response = await fetch(`${apiUrl}/api/v1/docs/list`);
+      const currentUserId = localStorage.getItem('admate_user_id') || 'public';
+      const response = await fetch(`${apiUrl}/api/v1/docs/list?user_id=${currentUserId}`);
       if (response.ok) {
         const data = await response.json();
         setUploadedDocs(data.documents || []);
@@ -53,15 +65,17 @@ export default function ChatPage() {
 
   // 초기 로드 시 문서 목록 가져오기 및 폴링 설정
   useEffect(() => {
-    fetchDocs();
-
-    // 5초마다 상태 체크 (이미지 분석 중인 문서가 있을 경우 대비)
-    const interval = setInterval(() => {
+    if (userId !== 'public') {
       fetchDocs();
+    }
+
+    // 5초마다 상태 체크
+    const interval = setInterval(() => {
+      if (userId !== 'public') fetchDocs();
     }, 5000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [userId]);
 
   // 채팅 전송 핸들러 (스트리밍 지원)
   const handleSend = async () => {
@@ -84,6 +98,7 @@ export default function ChatPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: userMsgText,
+          user_id: userId,
           filter_source: selectedFilter
         }),
       });
@@ -136,7 +151,7 @@ export default function ChatPage() {
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     try {
-      const response = await fetch(`${apiUrl}/api/v1/docs/delete/${encodeURIComponent(filename)}`, {
+      const response = await fetch(`${apiUrl}/api/v1/docs/delete/${encodeURIComponent(filename)}?user_id=${userId}`, {
         method: 'DELETE'
       });
       if (response.ok) {
@@ -156,7 +171,7 @@ export default function ChatPage() {
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000';
     try {
-      const response = await fetch(`${apiUrl}/api/v1/docs/upload`, {
+      const response = await fetch(`${apiUrl}/api/v1/docs/upload?user_id=${userId}`, {
         method: 'POST',
         body: formData,
       });

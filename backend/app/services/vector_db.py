@@ -99,8 +99,9 @@ class VectorDBService:
         # 0. 동일 출처(source)의 기존 데이터 삭제 (최초 업로드 시에만 수행)
         if not skip_delete:
             sources = list(set(c["metadata"]["source"] for c in chunks))
+            user_id = chunks[0]["metadata"].get("user_id", "public") if chunks else "public"
             for source in sources:
-                self.delete_document(source)
+                self.delete_document(source, user_id=user_id)
             
         count = 0
         batch_size = 20
@@ -122,8 +123,9 @@ class VectorDBService:
                 vectors_to_upsert = []
                 for j, vector in enumerate(vectors):
                     chunk = batch_chunks[j]
+                    user_id = chunk["metadata"].get("user_id", "public")
                     data_node = {
-                        "id": f"{chunk['metadata']['source']}_{i + j}",
+                        "id": f"{user_id}_{chunk['metadata']['source']}_{i + j}",
                         "values": vector,
                         "metadata": {
                             "text": chunk["content"], 
@@ -160,20 +162,26 @@ class VectorDBService:
         logger.info(f"Upsert process finished. Total successfully added: {count}")
         return count
 
-    def delete_document(self, source_name: str):
-        """특정 소스의 문서를 캐시 및 Pinecone에서 삭제"""
-        logger.info(f"Attempting to delete document segments for: {source_name}")
+    def delete_document(self, source_name: str, user_id: str = "public"):
+        """특정 사용자의 문서를 캐시 및 Pinecone에서 삭제"""
+        logger.info(f"Attempting to delete document segments for: {source_name} (User: {user_id})")
         
         # 1. 로컬 캐시에서 삭제
         initial_count = len(self.local_cache)
-        self.local_cache = [item for item in self.local_cache if item["metadata"].get("source") != source_name]
+        self.local_cache = [
+            item for item in self.local_cache 
+            if item["metadata"].get("source") != source_name or item["metadata"].get("user_id") != user_id
+        ]
         deleted_count = initial_count - len(self.local_cache)
         
         # 2. Pinecone에서 삭제
         if self.enabled:
             try:
-                # 메타데이터 'source' 필터를 사용하여 삭제
-                self.index.delete(filter={"source": {"$eq": source_name}})
+                # 메타데이터 'source'와 'user_id' 필터를 사용하여 삭제
+                self.index.delete(filter={
+                    "source": {"$eq": source_name},
+                    "user_id": {"$eq": user_id}
+                })
                 logger.info(f"Deleted from Pinecone: {source_name}")
             except Exception as e:
                 logger.error(f"Pinecone delete failed for {source_name}: {str(e)}")
@@ -182,17 +190,19 @@ class VectorDBService:
         logger.info(f"Deleted {deleted_count} chunks from local cache for {source_name}")
         return True
 
-    async def search(self, query: str, top_k: int = 3, filter_source: str = None):
-        """검색 (Pinecone 우선, 로컬 폴백) - 필터링 지원 추가"""
+    async def search(self, query: str, top_k: int = 3, filter_source: str = None, user_id: str = "public"):
+        """검색 (사용자 필터 적용)"""
         try:
-            logger.info(f"Searching: '{query}' (Filter: {filter_source})")
+            logger.info(f"Searching: '{query}' (User: {user_id}, Filter: {filter_source})")
             query_vector = self.embeddings.embed_query(query)
             
             # 1. Pinecone 검색
             if self.enabled:
                 try:
-                    # 필터 구성
-                    filter_params = {"source": {"$eq": filter_source}} if filter_source else None
+                    # 필터 구성: user_id 필수 + 선택적 source 필터
+                    filter_params = {"user_id": {"$eq": user_id}}
+                    if filter_source:
+                        filter_params["source"] = {"$eq": filter_source}
                     
                     res = self.index.query(
                         vector=query_vector, 
@@ -214,10 +224,14 @@ class VectorDBService:
                 return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
 
             similarities = []
-            # 필터 적용된 캐시 대상 선별
-            target_cache = self.local_cache
+            # 사용자별 필터 적용된 캐시 대상 선별
+            target_cache = [
+                item for item in self.local_cache 
+                if item["metadata"].get("user_id") == user_id
+            ]
+            
             if filter_source:
-                target_cache = [item for item in self.local_cache if item["metadata"].get("source") == filter_source]
+                target_cache = [item for item in target_cache if item["metadata"].get("source") == filter_source]
 
             for item in target_cache:
                 score = cosine_similarity(query_vector, item["values"])
