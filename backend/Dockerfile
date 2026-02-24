@@ -19,4 +19,4 @@ COPY . .
 
 # 서버 실행 (Hugging Face Spaces는 기본적으로 7860 포트를 사용하거나 PORT 환경변수 제공)
 # 0.0.0.0으로 열어야 외부 접속이 가능합니다.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.1.0", "--port", "7860"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
