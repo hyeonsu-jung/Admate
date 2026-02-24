@@ -50,13 +50,19 @@ async def list_documents():
     if engine.vector_db.local_cache:
         for item in engine.vector_db.local_cache:
             source = item["metadata"]["source"]
+            current_status = item["metadata"].get("status", "indexed")
+            
             if source not in docs_info:
                 docs_info[source] = {
                     "filename": source,
                     "uploaded_at": item["metadata"].get("uploaded_at"),
-                    "status": item["metadata"].get("status", "indexed"),
+                    "status": current_status,
                     "type": item["metadata"].get("type", "unknown")
                 }
+            else:
+                # 'indexed' 상태가 하나라도 있으면 최종 상태로 간주 (이미지 분석 완료 대응)
+                if current_status == "indexed":
+                    docs_info[source]["status"] = "indexed"
     
     return {"documents": list(docs_info.values())}
 
