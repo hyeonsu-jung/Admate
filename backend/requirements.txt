@@ -6,7 +6,7 @@ langchain
 langchain-anthropic
 langchain-openai
 langchain-community
-pinecone-client
+pinecone
 pymupdf
 pandas
 openpyxl
