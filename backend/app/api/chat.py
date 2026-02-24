@@ -9,26 +9,26 @@ router = APIRouter()
 engine = get_rag_engine()
 
 class ChatRequest(BaseModel):
-    message: str
+    query: str
     history: Optional[List[dict]] = []
     filter_source: Optional[str] = None
 
 @router.post("/ask")
 async def ask_question(request: ChatRequest):
     """사용자 질문에 대해 RAG 엔진을 사용해 답변 생성 (동기)"""
-    if not request.message.strip():
+    if not request.query.strip():
         raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
         
-    result = await engine.get_answer(request.message, filter_source=request.filter_source)
+    result = await engine.get_answer(request.query, filter_source=request.filter_source)
     return result
 
 @router.post("/ask/stream")
 async def ask_question_stream(request: ChatRequest):
     """사용자 질문에 대해 RAG 엔진을 사용해 답변 생성 (스트리밍)"""
-    if not request.message.strip():
+    if not request.query.strip():
         raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
         
     return StreamingResponse(
-        engine.get_streaming_answer(request.message, filter_source=request.filter_source),
+        engine.get_streaming_answer(request.query, filter_source=request.filter_source),
         media_type="text/event-stream"
     )
