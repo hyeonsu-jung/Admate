@@ -25,6 +25,15 @@ class DocumentParser:
                 images = []
                 image_list = page.get_images(full=True)
                 for img_index, img in enumerate(image_list):
+                    # 스마트 필터링: 너무 작은 이미지(아이콘, 불필요한 장식) 건너뛰기
+                    # img[2]는 너비, img[3]은 높이 (PyMuPDF 이미지 정보 구조)
+                    width = img[2]
+                    height = img[3]
+                    
+                    # 100x100 미만의 작은 이미지는 분석 가치가 낮으므로 제외 (속도 개선 핵심)
+                    if width < 100 or height < 100:
+                        continue
+                        
                     xref = img[0]
                     base_image = doc.extract_image(xref)
                     image_bytes = base_image["image"]

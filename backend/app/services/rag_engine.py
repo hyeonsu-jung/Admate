@@ -67,7 +67,7 @@ class RagEngine:
         """이미지를 백그라운드에서 분석하여 벡터 DB에 추가 (비동기 수행)"""
         vision = get_vision_service()
         vision_tasks = []
-        semaphore = asyncio.Semaphore(5)
+        semaphore = asyncio.Semaphore(10)
         
         for doc in documents:
             if doc.get("images"):
