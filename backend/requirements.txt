@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+pydantic-settings
+langchain
+langchain-anthropic
+langchain-openai
+langchain-community
+pinecone-client
+pymupdf
+pandas
+openpyxl
+python-dotenv
+unstructured[all-docs]
+python-magic-bin; sys_platform == 'win32'

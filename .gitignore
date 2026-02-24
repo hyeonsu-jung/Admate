@@ -1,0 +1,57 @@
+# Admate AI Project .gitignore
+
+# -----------------------------------------------------------------
+# 1. Credentials & Sensitive Info (MUST BE IGNORED)
+# -----------------------------------------------------------------
+.env
+.env*
+*.pem
+*.key
+
+# -----------------------------------------------------------------
+# 2. Python (Backend)
+# -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+/backend/vector_cache.pkl
+
+# -----------------------------------------------------------------
+# 3. Node.js (Frontend)
+# -----------------------------------------------------------------
+node_modules/
+.next/
+out/
+.vercel
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# -----------------------------------------------------------------
+# 4. OS & IDE
+# -----------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.tsbuildinfo
