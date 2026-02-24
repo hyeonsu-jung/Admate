@@ -104,9 +104,19 @@ class RagEngine:
         """질문에 대한 답변 생성 (벡터 검색 -> LLM 답변)"""
         start_time = time.time()
         try:
-            # 1. 유사 문서 검색 (필터 적용)
             matches = await self.vector_db.search(query, top_k=3, filter_source=filter_source)
-            context = "\n\n".join([m.metadata["text"] for m in matches]) if matches else "검색된 관련 문서가 없습니다."
+            
+            # 컨텍스트 보강: 텍스트 앞에 출처 정보 명시
+            context_list = []
+            for m in matches:
+                source_info = f"[출처: {m.metadata.get('source', '알 수 없음')}"
+                if m.metadata.get("page"):
+                    source_info += f", p.{m.metadata['page']}"
+                source_info += "]\n"
+                text_content = m.metadata.get("text", "")
+                context_list.append(f"{source_info}{text_content}")
+                
+            context = "\n\n---\n\n".join(context_list) if context_list else "검색된 관련 문서가 없습니다."
             
             # 2. LLM 답변 생성
             answer = await self.rag_chain.generate_answer(query, context)
@@ -134,9 +144,19 @@ class RagEngine:
         """스트리밍 방식으로 답변 및 출처 정보 전달"""
         start_time = time.time()
         try:
-            # 1. 유사 문서 검색
             matches = await self.vector_db.search(query, top_k=3, filter_source=filter_source)
-            context = "\n\n".join([m.metadata["text"] for m in matches]) if matches else "검색된 관련 문서가 없습니다."
+            
+            # 컨텍스트 보강: 텍스트 앞에 출처 정보 명시
+            context_list = []
+            for m in matches:
+                source_info = f"[출처: {m.metadata.get('source', '알 수 없음')}"
+                if m.metadata.get("page"):
+                    source_info += f", p.{m.metadata['page']}"
+                source_info += "]\n"
+                text_content = m.metadata.get("text", "")
+                context_list.append(f"{source_info}{text_content}")
+                
+            context = "\n\n---\n\n".join(context_list) if context_list else "검색된 관련 문서가 없습니다."
             
             # 2. 출처 정보 선제적 전송
             sources = []

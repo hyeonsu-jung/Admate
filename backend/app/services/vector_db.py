@@ -129,7 +129,7 @@ class VectorDBService:
                             "text": chunk["content"], 
                             **chunk["metadata"],
                             "uploaded_at": upload_time,
-                            "status": "indexed"
+                            "status": chunk["metadata"].get("status", "indexed")
                         }
                     }
                     self.local_cache.append(data_node)
