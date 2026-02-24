@@ -1,3 +1,13 @@
+---
+title: Admate API
+emoji: 🚀
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # RAG 기반 문서 검색 챗봇 — 기능 개발 요청서
 
 ---
