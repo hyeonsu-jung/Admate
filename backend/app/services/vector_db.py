@@ -22,9 +22,24 @@ try:
 except Exception:
     pass
 
+import hashlib
+import re
+
 # 로그 설정
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
+
+def generate_safe_id(raw_id: str) -> str:
+    """한글 포함 ID를 Pinecone용 ASCII-safe ID로 변환 (해시 포함)"""
+    if all(ord(c) < 128 for c in raw_id):
+        return raw_id
+    
+    # 한글/특수문자 제거 후 해시 추가
+    hash_suffix = hashlib.md5(raw_id.encode('utf-8')).hexdigest()[:10]
+    # ASCII 문자만 필터링 (알파벳, 숫자, 언더바)
+    ascii_part = re.sub(r'[^a-zA-Z0-9_]', '', raw_id)
+    # 너무 길면 자름
+    return f"{ascii_part[:40]}_{hash_suffix}"
 
 class VectorDBService:
     """Pinecone 및 영구 로컬 캐시 병행 서비스"""
@@ -121,16 +136,19 @@ class VectorDBService:
                 vectors = await self.embeddings.aembed_documents(batch_texts)
                 
                 vectors_to_upsert = []
+                batch_nodes = [] # 배치 성공 시에만 캐시에 넣기 위해 임시 보관
+                
                 for j, vector in enumerate(vectors):
                     chunk = batch_chunks[j]
                     user_id = chunk["metadata"].get("user_id", "public")
                     source = chunk["metadata"].get("source", "unknown")
                     data_type = chunk["metadata"].get("data_type", "text")
                     chunk_index = chunk["metadata"].get("chunk_index", i + j)
-                    # IMPORTANT: 텍스트/이미지 백그라운드 업로드가 같은 source로 여러 번 호출되므로
-                    # id 충돌이 나면 Pinecone에서 기존 텍스트 벡터를 이미지 벡터로 덮어써버릴 수 있음.
-                    # data_type + chunk_index를 포함해 안정적으로 유니크한 ID를 구성.
-                    vector_id = f"{user_id}_{source}_{data_type}_{chunk_index}"
+                    
+                    # ASCII 안전 ID 생성
+                    raw_id = f"{user_id}_{source}_{data_type}_{chunk_index}"
+                    vector_id = generate_safe_id(raw_id)
+                    
                     data_node = {
                         "id": vector_id,
                         "values": vector,
@@ -141,7 +159,7 @@ class VectorDBService:
                             "status": chunk["metadata"].get("status", "indexed")
                         }
                     }
-                    self.local_cache.append(data_node)
+                    batch_nodes.append(data_node)
                     
                     if self.enabled:
                         vectors_to_upsert.append({
@@ -151,13 +169,14 @@ class VectorDBService:
                         })
                     count += 1
 
-                # 각 배치 완료 후 파일에 즉시 중간 저장 (안전성)
-                self._save_cache()
-
-                # Pinecone 업서트
+                # Pinecone 업서트 우선 시도
                 if self.enabled and vectors_to_upsert:
                     self.index.upsert(vectors=vectors_to_upsert)
                     logger.info(f"Batch {i//batch_size + 1} synced to Pinecone.")
+
+                # Pinecone 성공 후 (또는 미사용 시) 로컬 캐시에 반영
+                self.local_cache.extend(batch_nodes)
+                self._save_cache()
 
             except Exception as e:
                 logger.error(f"Error in batch starting at index {i}: {str(e)}")
@@ -248,10 +267,16 @@ class VectorDBService:
                 similarities.append(Match(item["id"], score, item["metadata"]))
 
             similarities.sort(key=lambda x: x.score, reverse=True)
-            results = similarities[:top_k]
+            
+            # 스코어 임계값 적용 (0.3 미만 필터링)
+            threshold = 0.3
+            results = [s for s in similarities if s.score >= threshold]
+            results = results[:top_k]
             
             if results:
                 logger.info(f"Top Score: {results[0].score:.4f} for ID: {results[0].id}")
+            else:
+                logger.warning(f"No results above threshold {threshold}.")
             return results
 
         except Exception as e:
