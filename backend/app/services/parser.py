@@ -24,6 +24,7 @@ class DocumentParser:
                 # 2. 이미지 추출
                 images = []
                 image_list = page.get_images(full=True)
+                skipped_small = 0
                 for img_index, img in enumerate(image_list):
                     # 스마트 필터링: 너무 작은 이미지(아이콘, 불필요한 장식) 건너뛰기
                     # img[2]는 너비, img[3]은 높이 (PyMuPDF 이미지 정보 구조)
@@ -32,6 +33,7 @@ class DocumentParser:
                     
                     # 100x100 미만의 작은 이미지는 분석 가치가 낮으므로 제외 (속도 개선 핵심)
                     if width < 100 or height < 100:
+                        skipped_small += 1
                         continue
                         
                     xref = img[0]
@@ -40,7 +42,9 @@ class DocumentParser:
                     images.append(image_bytes)
                 
                 if text.strip() or images:
-                    logger.debug(f"Page {page_num+1}: {len(images)} images found.")
+                    logger.info(
+                        f"Page {page_num+1}: images_found={len(image_list)}, images_used={len(images)}, skipped_small={skipped_small}"
+                    )
                     chunks.append({
                         "content": text,
                         "images": images,  # 추출된 이미지 바이트 리스트

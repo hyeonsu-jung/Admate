@@ -124,8 +124,15 @@ class VectorDBService:
                 for j, vector in enumerate(vectors):
                     chunk = batch_chunks[j]
                     user_id = chunk["metadata"].get("user_id", "public")
+                    source = chunk["metadata"].get("source", "unknown")
+                    data_type = chunk["metadata"].get("data_type", "text")
+                    chunk_index = chunk["metadata"].get("chunk_index", i + j)
+                    # IMPORTANT: 텍스트/이미지 백그라운드 업로드가 같은 source로 여러 번 호출되므로
+                    # id 충돌이 나면 Pinecone에서 기존 텍스트 벡터를 이미지 벡터로 덮어써버릴 수 있음.
+                    # data_type + chunk_index를 포함해 안정적으로 유니크한 ID를 구성.
+                    vector_id = f"{user_id}_{source}_{data_type}_{chunk_index}"
                     data_node = {
-                        "id": f"{user_id}_{chunk['metadata']['source']}_{i + j}",
+                        "id": vector_id,
                         "values": vector,
                         "metadata": {
                             "text": chunk["content"], 

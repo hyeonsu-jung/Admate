@@ -21,11 +21,31 @@ class VisionService:
             http_async_client=custom_client
         )
 
+    @staticmethod
+    def _sniff_mime(image_bytes: bytes) -> str:
+        """바이트 헤더 기반으로 data URL mime을 추정 (OpenAI Vision 디코딩 안정화)"""
+        if not image_bytes:
+            return "image/jpeg"
+        # JPEG
+        if image_bytes[:2] == b"\xff\xd8":
+            return "image/jpeg"
+        # PNG
+        if image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+            return "image/png"
+        # GIF
+        if image_bytes[:6] in (b"GIF87a", b"GIF89a"):
+            return "image/gif"
+        # WEBP: RIFF....WEBP
+        if len(image_bytes) >= 12 and image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+            return "image/webp"
+        return "image/jpeg"
+
     async def describe_image(self, image_bytes: bytes) -> str:
         """이미지 바이트 데이터를 받아 GPT-4o Vision으로 분석된 텍스트 반환"""
         try:
             # 1. 이미지를 Base64로 인코딩
             base64_image = base64.b64encode(image_bytes).decode('utf-8')
+            mime = self._sniff_mime(image_bytes)
             
             # 2. 멀티모달 메시지 구성
             message = HumanMessage(
@@ -33,7 +53,7 @@ class VisionService:
                     {"type": "text", "text": "이 이미지는 광고 운영 가이드 문서의 일부입니다. 이 이미지에 포함된 데이터, 도표의 수치, 또는 시각적 설명을 상세히 텍스트로 요약해줘. RAG 검색에 활용될 정보이므로 중요한 키워드와 숫자 위주로 작성해줘."},
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                        "image_url": {"url": f"data:{mime};base64,{base64_image}"},
                     },
                 ]
             )
