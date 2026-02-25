@@ -237,7 +237,14 @@ class VectorDBService:
                         filter=filter_params
                     )
                     if res.matches:
-                        return res.matches
+                        # Pinecone 결과에도 임계값(0.3) 적용
+                        threshold = 0.3
+                        filtered_matches = [m for m in res.matches if m.score >= threshold]
+                        if filtered_matches:
+                            return filtered_matches
+                        else:
+                            logger.warning(f"Pinecone: No results above threshold {threshold}.")
+                            return []
                 except Exception as e:
                     logger.error(f"Pinecone query error: {str(e)}")
 

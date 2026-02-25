@@ -72,9 +72,10 @@ class RagEngine:
         for doc in documents:
             if doc.get("images"):
                 for img_idx, img_bytes in enumerate(doc["images"]):
+                    page_num = doc["metadata"].get("page", 0)
                     metadata = {
                         **doc["metadata"], 
-                        "chunk_index": f"img_{img_idx}", 
+                        "chunk_index": f"page_{page_num}_img_{img_idx}", 
                         "data_type": "image",
                         "status": "indexed" # 이미지까지 포함되면 최종 완료
                     }
@@ -114,7 +115,7 @@ class RagEngine:
             logger.info(f"Original Query: '{query}' -> Rewritten for search: '{search_query}'")
             
             # 2. 고도화된 쿼리로 검색 수행
-            matches = await self.vector_db.search(search_query, top_k=3, filter_source=filter_source, user_id=user_id)
+            matches = await self.vector_db.search(search_query, top_k=5, filter_source=filter_source, user_id=user_id)
             
             # 컨텍스트 보강
             context_list = []
@@ -159,7 +160,7 @@ class RagEngine:
             logger.info(f"Original Query: '{query}' -> Rewritten for search: '{search_query}'")
 
             # 2. 고도화된 쿼리로 검색 수행
-            matches = await self.vector_db.search(search_query, top_k=3, filter_source=filter_source, user_id=user_id)
+            matches = await self.vector_db.search(search_query, top_k=5, filter_source=filter_source, user_id=user_id)
             
             # 컨텍스트 보강
             context_list = []
