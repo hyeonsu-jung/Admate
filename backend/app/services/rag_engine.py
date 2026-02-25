@@ -81,7 +81,8 @@ class RagEngine:
                     async def analyze(bytes_data, meta):
                         async with semaphore:
                             try:
-                                logger.info(f"Background analysis starting: {meta.get('source')} p.{meta.get('page')}")
+                                page_info = f"p.{meta.get('page')}" if meta.get('page') else f"chunk {meta.get('chunk_index')}"
+                                logger.info(f"Background analysis starting: {meta.get('source')} {page_info}")
                                 desc = await vision.describe_image(bytes_data)
                                 return {"content": f"[이미지 분석 내용]\n{desc}", "metadata": meta}
                             except Exception as e:

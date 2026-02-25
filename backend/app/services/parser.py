@@ -21,33 +21,20 @@ class DocumentParser:
                 # 1. 텍스트 추출
                 text = page.get_text()
                 
-                # 2. 이미지 추출
-                images = []
-                image_list = page.get_images(full=True)
-                skipped_small = 0
-                for img_index, img in enumerate(image_list):
-                    # 스마트 필터링: 너무 작은 이미지(아이콘, 불필요한 장식) 건너뛰기
-                    # img[2]는 너비, img[3]은 높이 (PyMuPDF 이미지 정보 구조)
-                    width = img[2]
-                    height = img[3]
-                    
-                    # 100x100 미만의 작은 이미지는 분석 가치가 낮으므로 제외 (속도 개선 핵심)
-                    if width < 100 or height < 100:
-                        skipped_small += 1
-                        continue
-                        
-                    xref = img[0]
-                    base_image = doc.extract_image(xref)
-                    image_bytes = base_image["image"]
-                    images.append(image_bytes)
+                # 2. 페이지 전체를 고해상도 이미지로 렌더링 (Full Page Rendering)
+                # Matrix(2, 2)는 2배 확대(DPI 144)를 의미하며, 테이블 가독성을 확보합니다.
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                image_bytes = pix.tobytes("png")
+                images = [image_bytes]
+                
+                logger.info(
+                    f"Page {page_num+1}: text_len={len(text)}, full_page_image_rendered=True"
+                )
                 
                 if text.strip() or images:
-                    logger.info(
-                        f"Page {page_num+1}: images_found={len(image_list)}, images_used={len(images)}, skipped_small={skipped_small}"
-                    )
                     chunks.append({
                         "content": text,
-                        "images": images,  # 추출된 이미지 바이트 리스트
+                        "images": images,  # 이제 페이지 전체 이미지 1개가 포함됨
                         "metadata": {
                             "source": filename,
                             "page": page_num + 1,
