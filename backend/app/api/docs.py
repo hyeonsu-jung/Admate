@@ -2,11 +2,20 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 from app.services.parser import DocumentParser
 from app.services.rag_engine import get_rag_engine
 from typing import List
+import asyncio
 
 router = APIRouter()
 parser = DocumentParser()
 # 공유 인스턴스 사용
 engine = get_rag_engine()
+
+
+def _schedule_image_indexing(documents):
+  """
+  BackgroundTasks가 동기 함수를 요구하는 환경에서도
+  비동기 이미지 인덱싱 코루틴이 실제로 실행되도록 보장.
+  """
+  asyncio.create_task(engine.index_images_background(documents))
 
 @router.post("/upload")
 async def upload_documents(
@@ -31,8 +40,9 @@ async def upload_documents(
             count = await engine.index_text(raw_docs)
             
             # 3. 이미지 백그라운드 인덱싱 등록 (무거운 작업)
-            # 사용자는 기다리지 않고 즉시 응답을 받음
-            background_tasks.add_task(engine.index_images_background, raw_docs)
+            # 일부 환경에서 async 함수 자체를 add_task에 넘기면 실행되지 않는 문제를 회피하기 위해
+            # 동기 래퍼를 통해 이벤트 루프에 코루틴을 명시적으로 등록
+            background_tasks.add_task(_schedule_image_indexing, raw_docs)
             
             results.append({
                 "filename": file.filename,
