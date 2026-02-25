@@ -17,7 +17,7 @@ class VisionService:
         self.llm = ChatOpenAI(
             model="gpt-4o",
             openai_api_key=settings.OPENAI_API_KEY,
-            max_tokens=500,
+            max_tokens=2000,
             http_async_client=custom_client
         )
 
@@ -47,10 +47,22 @@ class VisionService:
             base64_image = base64.b64encode(image_bytes).decode('utf-8')
             mime = self._sniff_mime(image_bytes)
             
-            # 2. 멀티모달 메시지 구성
+            # 2. 멀티모달 메시지 구성 (프롬프트 고도화)
+            prompt = """이 이미지는 광고 운영 가이드 문서의 일부입니다.
+            
+1. 테이블/표가 포함된 경우: 반드시 Markdown 테이블 형식으로 모든 행과 열 데이터를 정확히 추출하세요.
+   - 헤더, 수치, 단위(원, %, px, mm 등)를 절대로 누락하지 마세요.
+   - 복잡한 표는 구조가 깨지지 않게 텍스트로 잘 표현하세요.
+2. 단가표/수수료 정보: 수치가 가장 중요하므로 정확하게 옮겨 적으세요.
+3. 시각적 설명: 이미지의 핵심 내용을 RAG 검색에 유리하도록 키워드 중심으로 요약하세요.
+
+출력 형식:
+- 테이블 데이터는 Markdown 테이블로 작성
+- 일반 설명은 구조화된 텍스트로 작성"""
+
             message = HumanMessage(
                 content=[
-                    {"type": "text", "text": "이 이미지는 광고 운영 가이드 문서의 일부입니다. 이 이미지에 포함된 데이터, 도표의 수치, 또는 시각적 설명을 상세히 텍스트로 요약해줘. RAG 검색에 활용될 정보이므로 중요한 키워드와 숫자 위주로 작성해줘."},
+                    {"type": "text", "text": prompt},
                     {
                         "type": "image_url",
                         "image_url": {"url": f"data:{mime};base64,{base64_image}"},

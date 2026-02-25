@@ -104,13 +104,18 @@ class RagEngine:
             await self.vector_db.upsert_documents(analyzed_images, skip_delete=True)
             logger.info("Background vision analysis and indexing completed.")
 
-    async def get_answer(self, query: str, filter_source: str = None, user_id: str = "public"):
-        """질문에 대한 답변 생성 (사용자 필터 적용)"""
+    async def get_answer(self, query: str, history: List[Dict[str, Any]] = None, filter_source: str = None, user_id: str = "public"):
+        """질문에 대한 답변 생성 (쿼리 재작성 및 사용자 필터 적용)"""
         start_time = time.time()
         try:
-            matches = await self.vector_db.search(query, top_k=3, filter_source=filter_source, user_id=user_id)
+            # 1. 지능형 쿼리 재작성 (Query Rewriting)
+            search_query = await self.rag_chain.rewrite_query(query, history=history, filter_source=filter_source)
+            logger.info(f"Original Query: '{query}' -> Rewritten for search: '{search_query}'")
             
-            # 컨텍스트 보강: 텍스트 앞에 출처 정보 명시
+            # 2. 고도화된 쿼리로 검색 수행
+            matches = await self.vector_db.search(search_query, top_k=3, filter_source=filter_source, user_id=user_id)
+            
+            # 컨텍스트 보강
             context_list = []
             for m in matches:
                 source_info = f"[출처: {m.metadata.get('source', '알 수 없음')}"
@@ -122,10 +127,10 @@ class RagEngine:
                 
             context = "\n\n---\n\n".join(context_list) if context_list else "검색된 관련 문서가 없습니다."
             
-            # 2. LLM 답변 생성
+            # 3. LLM 답변 생성
             answer = await self.rag_chain.generate_answer(query, context)
             
-            # 3. 출처 및 신뢰도 정리
+            # 4. 출처 및 신뢰도 정리
             sources = []
             if matches:
                 for m in matches:
@@ -135,7 +140,7 @@ class RagEngine:
                         "score": round(float(m.score), 4) if hasattr(m, 'score') else 0.8
                     })
             
-            # 4. 성능 로깅
+            # 5. 성능 로깅
             duration = time.time() - start_time
             self.monitor.log_request(query, duration, source_count=len(sources))
                 
@@ -144,13 +149,18 @@ class RagEngine:
             logger.error(f"Error in get_answer: {str(e)}")
             return {"answer": f"답변 생성 중 오류가 발생했습니다: {str(e)}", "sources": []}
 
-    async def get_streaming_answer(self, query: str, filter_source: str = None, user_id: str = "public"):
-        """스트리밍 방식으로 답변 및 출처 정보 전달 (사용자 필터 적용)"""
+    async def get_streaming_answer(self, query: str, history: List[Dict[str, Any]] = None, filter_source: str = None, user_id: str = "public"):
+        """스트리밍 방식으로 답변 및 출처 정보 전달 (쿼리 재작성 적용)"""
         start_time = time.time()
         try:
-            matches = await self.vector_db.search(query, top_k=3, filter_source=filter_source, user_id=user_id)
+            # 1. 지능형 쿼리 재작성
+            search_query = await self.rag_chain.rewrite_query(query, history=history, filter_source=filter_source)
+            logger.info(f"Original Query: '{query}' -> Rewritten for search: '{search_query}'")
+
+            # 2. 고도화된 쿼리로 검색 수행
+            matches = await self.vector_db.search(search_query, top_k=3, filter_source=filter_source, user_id=user_id)
             
-            # 컨텍스트 보강: 텍스트 앞에 출처 정보 명시
+            # 컨텍스트 보강
             context_list = []
             for m in matches:
                 source_info = f"[출처: {m.metadata.get('source', '알 수 없음')}"
@@ -162,7 +172,7 @@ class RagEngine:
                 
             context = "\n\n---\n\n".join(context_list) if context_list else "검색된 관련 문서가 없습니다."
             
-            # 2. 출처 정보 선제적 전송
+            # 3. 출처 정보 선제적 전송
             sources = []
             if matches:
                 for m in matches:
@@ -175,11 +185,11 @@ class RagEngine:
             import json
             yield f"__SOURCES__:{json.dumps(sources)}\n"
             
-            # 3. LLM 스트리밍 답변 생성
+            # 4. LLM 스트리밍 답변 생성
             async for chunk in self.rag_chain.astream_answer(query, context):
                 yield chunk
             
-            # 4. 성능 로깅
+            # 5. 성능 로깅
             duration = time.time() - start_time
             self.monitor.log_request(query, duration, source_count=len(sources))
                 

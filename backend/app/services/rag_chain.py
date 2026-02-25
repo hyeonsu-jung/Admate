@@ -15,6 +15,28 @@ class RagChain:
             temperature=0
         )
         
+        # 쿼리 재작성용 프롬프트
+        self.rewrite_prompt = ChatPromptTemplate.from_template("""
+당신은 사용자의 질문을 검색 엔진(Vector DB)에 최적화된 쿼리로 변환하는 전문가입니다.
+사용자의 현재 질문, 이전 대화 맥락, 그리고 현재 선택된 문서 필터링 정보를 바탕으로, 검색 결과가 가장 잘 나올 수 있는 상세한 쿼리를 작성하세요.
+
+[이전 대화 맥락]
+{history}
+
+[현재 선택된 문서 필터]
+{filter_source}
+
+[사용자 질문]
+{question}
+
+지침:
+1. 답변은 오직 검색에 사용할 '쿼리 문자열'만 출력하세요. 다른 설명은 생략합니다.
+2. 질문이 "단가는?", "사이즈는?" 처럼 짧을 경우, 이전 대화의 상품명이나 필터링된 문서명을 포함해 구체적인 쿼리로 확장하세요.
+   예: "단가는?" -> "(OOH 제작가이드) 신분당선 미디어가든 강남 광고 단가 비용"
+3. 핵심 키워드(상품명, 위치, 단가, 규격 등) 위주로 작성하세요.
+""")
+        self.rewrite_chain = self.rewrite_prompt | self.llm | StrOutputParser()
+        
         self.prompt = ChatPromptTemplate.from_template("""
 당신은 광고 운영팀을 돕는 유능한 AI 어시스턴트입니다. 
 아래 제공된 [문서 내용]을 바탕으로 사용자의 질문에 친절하고 정확하게 답변하세요.
@@ -52,3 +74,14 @@ class RagChain:
             "question": question
         }):
             yield chunk
+
+    async def rewrite_query(self, question: str, history: List[Dict[str, Any]] = None, filter_source: str = None) -> str:
+        """검색용 쿼리 재작성"""
+        history_text = "\n".join([f"{h['role']}: {h['content']}" for h in history]) if history else "없음"
+        response = await self.rewrite_chain.ainvoke({
+            "question": question,
+            "history": history_text,
+            "filter_source": filter_source or "전체"
+        })
+        rewritten = response.strip()
+        return rewritten
