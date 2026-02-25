@@ -20,7 +20,12 @@ async def ask_question(request: ChatRequest):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
         
-    result = await engine.get_answer(request.query, filter_source=request.filter_source, user_id=request.user_id)
+    result = await engine.get_answer(
+        query=request.query, 
+        history=request.history,
+        filter_source=request.filter_source, 
+        user_id=request.user_id
+    )
     return result
 
 @router.post("/ask/stream")
@@ -30,6 +35,11 @@ async def ask_question_stream(request: ChatRequest):
         raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
         
     return StreamingResponse(
-        engine.get_streaming_answer(request.query, filter_source=request.filter_source, user_id=request.user_id),
+        engine.get_streaming_answer(
+            query=request.query, 
+            history=request.history,
+            filter_source=request.filter_source, 
+            user_id=request.user_id
+        ),
         media_type="text/event-stream"
     )
