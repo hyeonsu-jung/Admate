@@ -110,14 +110,20 @@ export default function ChatPage() {
       let done = false;
       let accumulatedText = '';
       let sources: any[] = [];
+      let leftOver = ''; // 미완성된 라인을 보관할 변수
 
       while (!done) {
         const { value, done: doneReading } = await reader.read();
         done = doneReading;
         const chunk = decoder.decode(value, { stream: true });
 
-        // 청크 처리 (소스 정보 vs 텍스트 정보)
-        const lines = chunk.split('\n');
+        // 이전 청크의 잔여분과 합쳐서 라인 단위로 분할
+        const currentData = leftOver + chunk;
+        const lines = currentData.split('\n');
+
+        // 마지막 요소는 아직 \n이 나오지 않은 미완성 라인이므로 다음 청크를 위해 보관
+        leftOver = lines.pop() || '';
+
         for (const line of lines) {
           if (line.startsWith('__SOURCES__:')) {
             try {
@@ -125,14 +131,18 @@ export default function ChatPage() {
             } catch (e) {
               console.error('Source parsing error', e);
             }
-          } else if (line.trim() || chunk.length < 5) { // 빈 줄 방지 및 미세 청크 허용
-            accumulatedText += line;
+          } else {
+            // 소스가 아닌 일반 줄은 줄바꿈을 포함하여 추가
+            accumulatedText += line + '\n';
           }
         }
 
+        // 스트리밍 진행 중인 미완성 라인도 화면에 실시간 표시
+        const displayText = accumulatedText + leftOver;
+
         // 실시간 메시지 업데이트
         setMessages(prev => prev.map(m =>
-          m.id === botMsgId ? { ...m, text: accumulatedText, sources: sources } : m
+          m.id === botMsgId ? { ...m, text: displayText, sources: sources } : m
         ));
       }
     } catch (error) {
